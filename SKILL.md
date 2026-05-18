@@ -103,6 +103,47 @@ tasa_actividad <- sum(PONDERA[ESTADO %in% c(1,2)]) / sum(PONDERA[ESTADO %in% c(1
 tasa_actividad <- sum(PONDERA[ESTADO %in% c(1,2)]) / sum(PONDERA)
 ```
 
+### 2d. Tasa vs conteo — nunca mezclar
+
+**TASA** = cociente entre 0 y 1 (o porcentaje entre 0 y 100). Tiene denominador.
+**CONTEO** = suma ponderada, resultado en personas (millones o miles).
+
+```r
+# TASA de desocupación — resultado: ~7.7 (porcentaje)
+tasa_desoc <- sum(PONDERA[ESTADO==2]) / sum(PONDERA[ESTADO %in% c(1,2)]) * 100
+
+# CONTEO de desocupados — resultado: ~1,088,000 (personas)
+n_desoc <- sum(PONDERA[ESTADO==2])
+```
+
+❌ **Error grave**: "La tasa de desocupación fue de 994,334 personas" — mezcla tasa con conteo.
+Si la pregunta dice "tasa", "porcentaje" o "%" → resultado debe ser un número entre 0 y 100.
+Si dice "cuántas personas" o "cantidad" → resultado en personas (suma ponderada).
+
+### 2e. Serie de N trimestres — iterar correctamente
+
+Cuando la pregunta pide "los últimos N trimestres" o una serie temporal:
+
+```r
+# Correcto — lista explícita de períodos
+periodos <- list(
+  list(year=2023, period=3),
+  list(year=2023, period=4),
+  list(year=2024, period=1),
+  list(year=2024, period=2)
+)
+
+bases <- lapply(periodos, function(p) {
+  b <- get_microdata(year=p$year, period=p$period, type="individual")
+  b$ANO4 <- p$year
+  b$TRIMESTRE <- p$period
+  b
+})
+base_total <- bind_rows(bases)
+```
+
+❌ **Error común**: vectores `anos` y `trimestres` de distinta longitud iterar uno sobre otro. Siempre usar lista de pares (year, period).
+
 ### 3. Merge Hogar/Personas
 Si el código une las dos bases, verificar que use las 4 keys:
 `CODUSU`, `NRO_HOGAR`, `ANO4`, `TRIMESTRE`
