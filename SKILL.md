@@ -88,6 +88,21 @@ estrictamente comparable sin empalme. Ver detalles:
 - Hogares → `PONDIH`
 - Ingresos de ocupación principal → `PONDIIO`
 
+### 2b. ESTADO == 0 — filtrar siempre antes de calcular
+`ESTADO == 0` son casos no aplicables que distorsionan denominadores. Agregar al inicio del análisis:
+```r
+base <- base %>% filter(ESTADO != 0)
+```
+
+### 2c. Denominador tasa de actividad
+El denominador es `ESTADO %in% c(1,2,3)` (PEA + inactivos), **NO** toda la población. Incluye menores si no se filtran antes:
+```r
+# Correcto
+tasa_actividad <- sum(PONDERA[ESTADO %in% c(1,2)]) / sum(PONDERA[ESTADO %in% c(1,2,3)])
+# Incorrecto — divide sobre toda la base
+tasa_actividad <- sum(PONDERA[ESTADO %in% c(1,2)]) / sum(PONDERA)
+```
+
 ### 3. Merge Hogar/Personas
 Si el código une las dos bases, verificar que use las 4 keys:
 `CODUSU`, `NRO_HOGAR`, `ANO4`, `TRIMESTRE`
@@ -106,6 +121,7 @@ Leer el archivo correspondiente solo si la consulta lo requiere:
 | La consulta involucra...                         | Leer este archivo                    |
 |:-------------------------------------------------|:-------------------------------------|
 | Tasas de actividad, empleo, desocupación, subocupación | `assets/methodology/indicadores_mercado_laboral.md` |
+| Confiabilidad por aglomerado, CV, errores de muestreo   | usar `eph::errores_muestrales` (tabla built-in del paquete) |
 | Cómo ponderar, qué ponderador usar               | `assets/methodology/ponderadores.md` |
 | Series de tiempo pre/pos 4T2023                  | `assets/methodology/quiebre_serie_4t2023.md` |
 | Diferencias entre EPH continua y Total Urbano    | `assets/methodology/eph_continua_vs_total_urbano.md` |
@@ -165,6 +181,35 @@ Agregar al final de cada script generado las advertencias que apliquen:
 
 ## Notas metodológicas confirmadas en uso real
 
+### Caching con destfile en get_microdata()
+
+Siempre sugerir `destfile` para evitar re-descargar (100s → 0.5s):
+```r
+base <- get_microdata(
+  year = 2023, period = 1,
+  type = "individual",
+  vars = c("PONDERA", "ESTADO", "CAT_OCUP", "AGLOMERADO"),
+  destfile = "data/base_cache.rds"
+)
+```
+Si el archivo ya existe, `get_microdata()` lo lee desde disco.
+
+---
+
+### Errores de muestreo — aglomerados chicos poco confiables
+
+La tabla `eph::errores_muestrales` tiene CV por aglomerado y período. Aglomerados con alta CV (>20%) son poco confiables a nivel trimestral. Estrategias:
+- Poolear 2 trimestres consecutivos
+- Usar base anual / semestral
+- Reportar junto al estimado el CV o el intervalo de confianza
+
+```r
+library(eph)
+errores_muestrales  # tabla built-in
+```
+
+---
+
 ### Jubilados activos — no filtrar por CAT_INAC
 
 **NUNCA** usar `CAT_INAC == 1` como única condición para identificar perceptores de jubilación/pensión.
@@ -208,3 +253,13 @@ cat_cp <- case_when(
 - **TCSNP** (Cuenta Propia sin calificación/operativos): calificación 3 + 4
 
 Esta clasificación es consistente para **ambos períodos PRE y POST 4T2023** — `PP04D_COD` no cambió con el nuevo cuestionario.
+
+---
+
+### Consistencia de panel — criterios de validación
+
+Al usar `organize_panels()`, la columna `consistencia` marca individuos con seguimiento dudoso. Los criterios estándar usados en los cursos:
+- `abs(CH06 - CH06_t1) > 2` → salto de edad imposible → error de registro
+- `CH04 != CH04_t1` → cambio de sexo → error de registro
+
+Estos casos **no se descartan automáticamente** — se marcan con `consistencia = FALSE` y el analista decide si incluirlos. Para análisis de transiciones laborales: filtrar solo `consistencia == TRUE`.
