@@ -241,6 +241,23 @@ elija. Un número sin etiqueta es ambiguo aunque el cálculo esté bien.
 ⚠️ La **brecha de género que publica el INDEC** se calcula sobre el **ingreso individual**
 (`P47T`, ponderador `PONDII`), no sobre la ocupación principal.
 
+**El universo de cada indicador de ingreso no es intercambiable.** Cambiarlo altera el número tanto
+como cambiar el indicador:
+
+| Indicador | Universo | Filtro en R | Ponderador |
+|---|---|---|---|
+| Ocupación principal (`P21`) | **Ocupados** con ingreso | `ESTADO == 1, P21 > 0` | `PONDIIO` |
+| Total individual (`P47T`) | **Todos los perceptores**, ocupados o no | `P47T > 0` | `PONDII` |
+| Per cápita familiar (`IPCF`) | Toda la población | (sin filtro de ingreso) | `PONDIH` |
+
+❌ Calcular `P47T` restringido a `ESTADO == 1` excluye jubilados, rentistas y perceptores de
+transferencias: sube el promedio y deja de coincidir con lo publicado. `P47T` es un ingreso de la
+persona, no de su puesto de trabajo — no lleva filtro por condición de actividad.
+
+Comprobación 4T2025: con el universo correcto, `P47T` da $838.336 (mujeres) y $1.191.364 (varones),
+exactamente las cifras del INDEC. Restringido a ocupados da ~$1.037.877 y ~$1.325.689, que no
+corresponden a ningún indicador publicado.
+
 ### 2h. Valores de referencia — ingresos 4T2025 (31 aglomerados)
 
 | Indicador | Valor | Ponderador |
