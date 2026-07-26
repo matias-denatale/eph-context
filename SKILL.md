@@ -88,20 +88,76 @@ estrictamente comparable sin empalme. Ver detalles:
 - Hogares → `PONDIH`
 - Ingresos de ocupación principal → `PONDIIO`
 
-### 2b. ESTADO == 0 — filtrar siempre antes de calcular
-`ESTADO == 0` son casos no aplicables que distorsionan denominadores. Agregar al inicio del análisis:
+### 2b. ESTADO == 0 — entrevista individual no realizada
+
+`ESTADO == 0` son casos sin cuestionario individual. Para análisis de **subgrupos** (por rama,
+sexo, nivel educativo, etc.) conviene excluirlos, porque no tienen las variables que definen el
+corte y ensucian el denominador de ese subgrupo:
+
 ```r
 base <- base %>% filter(ESTADO != 0)
 ```
 
-### 2c. Denominador tasa de actividad
-El denominador es `ESTADO %in% c(1,2,3)` (PEA + inactivos), **NO** toda la población. Incluye menores si no se filtran antes:
+⚠️ **NO aplicar este filtro al denominador de la tasa de actividad ni de empleo** — ver 2c: ahí el
+denominador es la población total, la base completa. Filtrar antes de calcular TA/TE las infla.
+
+*(No verificado: si el total de 30,0 M que publica el INDEC incluye o no a los `ESTADO == 0`. Son
+pocos casos, así que el efecto es chico, pero si se busca reproducir la cifra publicada al decimal
+conviene probar las dos variantes contra el cuadro 1.1.)*
+
+### 2c. Denominador de tasa de actividad y de empleo — es TODA la población
+
+El INDEC define la TA como *"la población económicamente activa (PEA) sobre el **total de la
+población**"* y la TE como *"la proporción de personas ocupadas con relación a la **población
+total**"*. El denominador es la base entera, **sin filtrar por `ESTADO`** — incluye a los menores
+de 10 años (`ESTADO == 4`).
+
 ```r
-# Correcto
+# Correcto — denominador = toda la base
+tasa_actividad <- sum(PONDERA[ESTADO %in% c(1,2)]) / sum(PONDERA) * 100
+tasa_empleo    <- sum(PONDERA[ESTADO == 1])        / sum(PONDERA) * 100
+
+# Incorrecto — excluir menores/no respuesta infla la tasa varios puntos
 tasa_actividad <- sum(PONDERA[ESTADO %in% c(1,2)]) / sum(PONDERA[ESTADO %in% c(1,2,3)])
-# Incorrecto — divide sobre toda la base
-tasa_actividad <- sum(PONDERA[ESTADO %in% c(1,2)]) / sum(PONDERA)
 ```
+
+**Comprobación (3T2025, 31 aglomerados):** PEA 14,6 M ÷ población total 30,0 M = **48,6%**, que es
+exactamente la tasa publicada. Con el denominador restringido a `ESTADO %in% c(1,2,3)` da ~57%.
+
+La tasa de **desocupación** sí lleva denominador restringido: es sobre la PEA, no sobre la población.
+
+```r
+tasa_desocupacion <- sum(PONDERA[ESTADO == 2]) / sum(PONDERA[ESTADO %in% c(1,2)]) * 100
+```
+
+**Valores de referencia para validar (31 aglomerados urbanos):**
+
+| Tasa | 3T2024 | 4T2024 | 1T2025 | 2T2025 | 3T2025 |
+|------|--------|--------|--------|--------|--------|
+| Actividad | 48,3 | 48,8 | 48,2 | 48,1 | 48,6 |
+| Empleo | 45,0 | 45,7 | 44,4 | 44,5 | 45,4 |
+| Desocupación abierta | 6,9 | 6,4 | 7,9 | 7,6 | 6,6 |
+| Subocupación | 11,4 | 11,3 | 10,0 | 11,6 | 10,9 |
+
+Fuente: INDEC, *Mercado de trabajo. Tasas e indicadores socioeconómicos (EPH)*, 3T2025, cuadro 1.1.
+
+### 2c-bis. Informalidad — el denominador excluye los ignorados
+
+`EMPLEO == 9` es la categoría **"Ocupados con ignorado en la formalidad"** (Metodología INDEC
+N° 43, cuadro 4), no un dato faltante. `!is.na(EMPLEO)` **no lo filtra**. El INDEC aclara al pie
+de sus cuadros: *"no se incluye personas sin información respecto a la condición de formalidad
+en el empleo"*.
+
+```r
+# Correcto — excluye explícitamente el ignorado
+base |> filter(ESTADO == 1, EMPLEO %in% c(1, 2))
+```
+
+Ídem `SECTOR`: usar `SECTOR %in% c(1, 2, 3)`.
+
+**Referencia (tasa de empleo informal):** 4T2023 41,4% · 4T2024 42,0% · 4T2025 43,0%.
+Por rama, 4T2025: servicio doméstico 78,0% · construcción 73,8% · comercio 52,6% ·
+industria manufacturera 37,2%.
 
 ### 2d. Tasa vs conteo — nunca mezclar
 
