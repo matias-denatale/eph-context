@@ -200,6 +200,68 @@ base_total <- bind_rows(bases)
 
 ❌ **Error común**: vectores `anos` y `trimestres` de distinta longitud iterar uno sobre otro. Siempre usar lista de pares (year, period).
 
+### 2f. 🔴 Desborde de enteros al ponderar ingresos — OBLIGATORIO `as.numeric()`
+
+Las variables de ingreso (`P21`, `P47T`, `ITF`, `IPCF`, `V*_M`, `PP06C`…) y los ponderadores llegan
+de la base como **`integer`**. Su producto desborda int32 (>2.147.483.647): con ponderadores de
+1.000–2.500, eso ocurre en **ingresos desde ~$860.000**. R convierte el desborde en `NA`, y
+`na.rm = TRUE` descarta esas filas **en silencio**.
+
+**No es un aviso cosmético: cambia el número.** El sesgo elimina justo a los que más ganan.
+
+```r
+# Correcto
+sum(as.numeric(P21) * PONDIIO, na.rm = TRUE) / sum(PONDIIO, na.rm = TRUE)
+
+# Incorrecto — desborda, sesga hacia abajo y el resultado parece plausible
+sum(P21 * PONDIIO, na.rm = TRUE) / sum(PONDIIO, na.rm = TRUE)
+```
+
+**Caso real (4T2025):** sin castear, la brecha salarial de género dio 6,6% con un ingreso medio de
+~$440.000. Con `as.numeric()`, dio **29,6%** con $838.336 (mujeres) y $1.191.364 (varones) — que son
+**exactamente** las cifras publicadas por el INDEC.
+
+### 2g. Nombrar SIEMPRE el indicador usado
+
+Muchas preguntas admiten más de un indicador defendible, y el número cambia mucho según cuál se
+elija. Un número sin etiqueta es ambiguo aunque el cálculo esté bien.
+
+- Nombrá el indicador en palabras **y** con la variable: *"el ingreso de la ocupación principal (`P21`)"*.
+- Si hay una segunda lectura defendible sobre la misma base, calculá y reportá las dos.
+- No inventes una disyuntiva donde hay un solo indicador.
+
+| La pregunta suena a… | Indicador A | Indicador B |
+|---|---|---|
+| Ingresos de una persona | Ocupación principal (`P21`, `PONDIIO`) | Total individual (`P47T`, `PONDII`) |
+| Ingresos de un hogar | Ingreso total familiar (`ITF`) | Per cápita familiar (`IPCF`) |
+| Informalidad | Del **empleo** (`EMPLEO`) | De la **unidad económica** (`SECTOR`) |
+| Falta de trabajo | Tasa de desocupación | Presión sobre el mercado (subocupados + ocupados demandantes) |
+| Cobertura geográfica | EPH 31 aglomerados (trimestral) | EPH Total Urbano (anual) |
+
+⚠️ La **brecha de género que publica el INDEC** se calcula sobre el **ingreso individual**
+(`P47T`, ponderador `PONDII`), no sobre la ocupación principal.
+
+### 2h. Valores de referencia — ingresos 4T2025 (31 aglomerados)
+
+| Indicador | Valor | Ponderador |
+|-----------|-------|------------|
+| Ingreso medio de la ocupación principal | **$1.068.540** | `PONDIIO` |
+| Mediana de la ocupación principal | $800.000 | `PONDIIO` |
+| Ingreso medio de asalariados | $1.082.635 | `PONDIIO` |
+| — con descuento jubilatorio | $1.321.353 | `PONDIIO` |
+| — sin descuento jubilatorio | $651.484 | `PONDIIO` |
+| Ingreso individual medio (perceptores) | **$1.011.863** | `PONDII` |
+| — varones | **$1.191.364** | `PONDII` |
+| — mujeres | **$838.336** | `PONDII` |
+| Ingreso per cápita familiar medio | $635.996 | `PONDIH` |
+| Mediana del IPCF | $450.000 | `PONDIH` |
+| Coeficiente de Gini del IPCF | 0,427 | `PONDIH` |
+
+Fuente: INDEC, *Evolución de la distribución del ingreso (EPH)*, 4T2025.
+
+> Si un cálculo de ingresos da muy por debajo de estos valores, sospechar del desborde de enteros
+> (2f) antes que de los datos.
+
 ### 3. Merge Hogar/Personas
 Si el código une las dos bases, verificar que use las 4 keys:
 `CODUSU`, `NRO_HOGAR`, `ANO4`, `TRIMESTRE`
