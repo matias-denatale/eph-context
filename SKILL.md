@@ -241,18 +241,46 @@ elija. Un número sin etiqueta es ambiguo aunque el cálculo esté bien.
 ⚠️ La **brecha de género que publica el INDEC** se calcula sobre el **ingreso individual**
 (`P47T`, ponderador `PONDII`), no sobre la ocupación principal.
 
-**El universo de cada indicador de ingreso no es intercambiable.** Cambiarlo altera el número tanto
-como cambiar el indicador:
+### 2g-bis. CRITERIO GENERAL — universo, ponderador y casos descartados
 
-| Indicador | Universo | Filtro en R | Ponderador |
-|---|---|---|---|
-| Ocupación principal (`P21`) | **Ocupados** con ingreso | `ESTADO == 1, P21 > 0` | `PONDIIO` |
-| Total individual (`P47T`) | **Todos los perceptores**, ocupados o no | `P47T > 0` | `PONDII` |
-| Per cápita familiar (`IPCF`) | Toda la población | (sin filtro de ingreso) | `PONDIH` |
+Aplica a **TODO** cálculo sobre la EPH, no solo a ingresos. Tres decisiones definen cualquier
+indicador, y equivocarse en una cambia el número **sin dar ningún error**.
 
-❌ Calcular `P47T` restringido a `ESTADO == 1` excluye jubilados, rentistas y perceptores de
-transferencias: sube el promedio y deja de coincidir con lo publicado. `P47T` es un ingreso de la
-persona, no de su puesto de trabajo — no lleva filtro por condición de actividad.
+**1. El universo.** No es "todas las filas de la base": cada indicador tiene el suyo.
+
+| Familia | Indicador | Universo | Filtro en R | Ponderador |
+|---|---|---|---|---|
+| **Mercado de trabajo** | Tasa de actividad | Toda la población | (sin filtro) | `PONDERA` |
+| | Tasa de empleo | Toda la población | (sin filtro) | `PONDERA` |
+| | Tasa de desocupación | PEA | `ESTADO %in% c(1,2)` | `PONDERA` |
+| | Tasa de subocupación | PEA | `ESTADO %in% c(1,2)` | `PONDERA` |
+| **Informalidad** | Del empleo | Ocupados con condición conocida | `ESTADO == 1, EMPLEO %in% c(1,2)` | `PONDERA` |
+| | De la unidad económica | Ocupados con sector conocido | `ESTADO == 1, SECTOR %in% c(1,2,3)` | `PONDERA` |
+| **Ingresos** | Ocupación principal (`P21`) | Ocupados con ingreso | `ESTADO == 1, P21 > 0` | `PONDIIO` |
+| | Total individual (`P47T`) | Todos los perceptores | `P47T > 0` | `PONDII` |
+| | Per cápita familiar (`IPCF`) | Toda la población | (sin filtro) | `PONDIH` |
+| | Ingreso total familiar (`ITF`) | Hogares | nivel hogar | `PONDIH` |
+
+**Regla de olfato**: un indicador *del puesto de trabajo* lleva filtro por condición de actividad;
+uno *de la persona* o *del hogar*, no. `P47T` es de la persona — restringirlo a `ESTADO == 1`
+excluye jubilados, rentistas y perceptores de transferencias, sube el promedio y deja de coincidir
+con lo publicado.
+
+**2. El ponderador** corresponde a la familia de la variable, no a la unidad de análisis que uno
+imagina. Ver 2 arriba.
+
+**3. Ningún caso se descarta por accidente.** Todo caso excluido tiene que ser una decisión
+explícita, nunca un efecto colateral. Las tres formas en que la EPH pierde casos en silencio:
+
+- **Ignorados codificados**: `EMPLEO == 9`, `SECTOR == 9` son *categorías*, no `NA` — `!is.na()` no
+  los filtra. Excluirlos por lista de valores válidos.
+- **Desborde de enteros** (ver 2f): `ingreso * ponderador` sin `as.numeric()` da `NA`, y
+  `na.rm = TRUE` lo descarta.
+- **Filtros de más**: restringir el universo por costumbre donde el indicador no lo pide.
+
+**4. Contrastar contra lo publicado.** Si existe cifra oficial del INDEC para ese indicador y
+período, el resultado debe coincidir. Si difiere, el error está en el cálculo — revisar universo,
+ponderador y casos descartados, en ese orden.
 
 Comprobación 4T2025: con el universo correcto, `P47T` da $838.336 (mujeres) y $1.191.364 (varones),
 exactamente las cifras del INDEC. Restringido a ocupados da ~$1.037.877 y ~$1.325.689, que no
