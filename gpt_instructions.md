@@ -193,21 +193,26 @@ de los inactivos que se autoidentifican como jubilados.
 
 ---
 
-### Clasificación TCP / TCSNP para cuenta propia (CAT_OCUP == 2)
+### Clasificación TCP / TCP NP para cuenta propia (CAT_OCUP == 2)
 
-Cuando se necesita dividir la cuenta propia en calificada vs. no calificada, usar el **5° dígito de `PP04D_COD`** (CNO 2001):
+Para dividir la cuenta propia en profesional vs. no profesional se usa la **calificación ocupacional**: el **5° dígito de `PP04D_COD`** (CNO 2001), o `clase1` en las bases procesadas del CIAS (coinciden 1 a 1).
 
 ```r
-cno_calific <- substr(as.character(PP04D_COD), 5, 5)
+# PP04D_COD puede venir numérico (.sav, read.table): 5002 es "05002".
+# Rellenar a 5 dígitos ANTES de cortar, o substr() toma el dígito equivocado.
+cno_calific <- substr(sprintf("%05d", as.integer(PP04D_COD)), 5, 5)
 
 cat_cp <- case_when(
-  cno_calific %in% c("1", "2") ~ "TCP",    # Profesional (1) + Técnico (2)
-  cno_calific %in% c("3", "4") ~ "TCSNP",  # Operativo (3) + No calificado (4)
-  TRUE                          ~ NA_character_
+  cno_calific == "1"                ~ "TCP",     # Profesional
+  cno_calific %in% c("2", "3", "4") ~ "TCP NP",  # Técnico + Operativo + No calificado
+  TRUE                              ~ NA_character_
 )
 ```
 
-- **TCP** (Trabajadores Cuenta Propia calificados): calificación 1 + 2
-- **TCSNP** (Cuenta Propia sin calificación/operativos): calificación 3 + 4
+- **TCP** (cuenta propia profesional): **solo** calificación 1.
+- **TCP NP** (cuenta propia no profesional): calificación 2 + 3 + 4 — los **técnicos van acá**, no con los profesionales.
 
-Esta clasificación es consistente para **ambos períodos PRE y POST 4T2023**.
+⚠️ Una versión anterior de esta nota agrupaba profesional + técnico como "TCP". Estaba mal: infla el
+grupo profesional (3,3% vs 1,3% de la población) y le triplica la pobreza (~19-24% vs ~7%, 3T2025-1T2026).
+
+Esta clasificación es consistente para **ambos períodos PRE y POST 4T2023** — `PP04D_COD` no cambió con el nuevo cuestionario.
